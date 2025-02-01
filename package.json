@@ -1,0 +1,16 @@
+{
+  "name": "epdmt",
+  "version": "1.0.0",
+  "description": "An experiment in how much can be done by being lazy and making LLMs do ALL the work",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "axios": "^1.4.0",
+    "form-data": "^4.0.0",
+    "node-telegram-bot-api": "^0.61.0"
+  },
+  "author": "",
+  "license": "ISC"
+}
