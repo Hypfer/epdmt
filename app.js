@@ -13,14 +13,14 @@ if (!BOT_TOKEN || !API_BASE_URL || !DISPLAY_ID) {
     process.exit(1);
 }
 
-async function renderPreview(blackBuffer, colorBuffer, width, height) {
+async function renderPreview(displayBuffer, width, height, displayType) {
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     const imageData = ctx.createImageData(width, height);
 
     // Convert base64 to Uint8Array
-    const blackArray = Buffer.from(blackBuffer, 'base64');
-    const colorArray = Buffer.from(colorBuffer, 'base64');
+    const displayArray = Buffer.from(displayBuffer, 'base64');
+    const bufferHalfLength = displayArray.length / 2;
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -28,23 +28,39 @@ async function renderPreview(blackBuffer, colorBuffer, width, height) {
             const bytePos = Math.floor((y * width + x) / 8);
             const bitPos = 7 - (x % 8);
 
-            const isBlack = !(blackArray[bytePos] & (1 << bitPos));
-            const isColor = !(colorArray[bytePos] & (1 << bitPos));
+            // Default to white
+            let r = 255, g = 255, b = 255;
 
-            if (isBlack) {
-                imageData.data[i] = 0;     // R
-                imageData.data[i+1] = 0;   // G
-                imageData.data[i+2] = 0;   // B
-            } else if (isColor) {
-                imageData.data[i] = 255;   // R
-                imageData.data[i+1] = 0;   // G
-                imageData.data[i+2] = 0;   // B
-            } else {
-                imageData.data[i] = 255;   // R
-                imageData.data[i+1] = 255; // G
-                imageData.data[i+2] = 255; // B
+            switch(displayType) {
+                case 'BW': {
+                    const isBlack = !(displayArray[bytePos] & (1 << bitPos));
+                    if (isBlack) {
+                        r = g = b = 0;
+                    }
+                    break;
+                }
+                case 'BWR':
+                case 'BWY': {
+                    const isBlack = !(displayArray[bytePos] & (1 << bitPos));
+                    const isColor = !(displayArray[bytePos + bufferHalfLength] & (1 << bitPos));
+
+                    if (isBlack) {
+                        r = g = b = 0;
+                    } else if (isColor) {
+                        if (displayType === 'BWR') {
+                            r = 255; g = 0; b = 0; // Red
+                        } else {
+                            r = 255; g = 255; b = 0; // Yellow
+                        }
+                    }
+                    break;
+                }
             }
-            imageData.data[i+3] = 255;     // A
+
+            imageData.data[i] = r;     // R
+            imageData.data[i+1] = g;   // G
+            imageData.data[i+2] = b;   // B
+            imageData.data[i+3] = 255; // A
         }
     }
 
@@ -113,12 +129,16 @@ bot.on('message', async (msg) => {
                 `${API_BASE_URL}/displays/${DISPLAY_ID}/image`
             );
 
+            // Get display type from status
+            const displayStatus = await axios.get(`${API_BASE_URL}/displays/${DISPLAY_ID}`);
+            const displayType = displayStatus.data.displayType;
+
             // Render preview
             const previewBuffer = await renderPreview(
-                displayResponse.data.blackBuffer,
-                displayResponse.data.colorBuffer,
+                displayResponse.data.displayBuffer,
                 displayResponse.data.width,
-                displayResponse.data.height
+                displayResponse.data.height,
+                displayType
             );
 
             // Send preview image
